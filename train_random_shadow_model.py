@@ -1,3 +1,5 @@
+
+
 import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
@@ -5,27 +7,32 @@ from torchvision.models import ResNet50_Weights
 import torch.nn as nn
 import torchvision.models as models
 from torch.utils.data.dataloader import DataLoader
+from torchvision import transforms
 
 import os
 import numpy as np
+from PIL import Image
 import pickle
 from tqdm import tqdm
 import time
 
 
-class Traffic_Dataset(Dataset):
+class My_Dataset(Dataset):
 
-    def __init__(self,x,y):
-        self.x = x 
-        self.y = torch.LongTensor(y)
+    def __init__(self,file_list,transform=transforms.ToTensor()):
+        self.file_list = file_list
+        self.transform = transform
     
     def __len__(self):
-        return len(self.x)
+        return len(self.file_list)
 
     def __getitem__(self,idx):
-        _x = transforms.ToTensor()(self.x[idx])
-        _y = self.y[idx]
-        return _x,_y
+        img_path = self.file_list[idx]
+        img = Image.open(img_path)
+        img_transformed = self.transform(img)
+
+        label = int(img_path.split("/")[4])
+        return img_transformed,label
 
 class GtsrbCNN(nn.Module):
 
@@ -41,22 +48,29 @@ class GtsrbCNN(nn.Module):
         x = self.res_block(x)
         return x
 
-def training(train_data, train_labels, test_data, test_labels, 
-             model, start_epoch, epoch_num, batch_size, loss_func, optimizer, save_path):
+def make_file_list(dir_path):
+    dir_list = os.listdir(dir_path)
+    file_list = []
+    for d in dir_list:
+        label_path = os.path.join(dir_path,d)
+        f_list = os.listdir(label_path)
+        file_list.extend([os.path.join(label_path,f) for f in f_list])
+    return file_list
+
+def train_test_loop(train_file_list, test_file_list, model, start_epoch, epoch_num, batch_size, loss_func, optimizer, save_path):
 
     max_loss = 10000
 
     for epoch in range(start_epoch,start_epoch+epoch_num):
         train_acc, train_loss, test_acc, test_loss = 0, 0, 0, 0
         epoch_start_time = time.time()
-        train_dataset = Traffic_Dataset(train_data,train_labels)
-        test_dataset = Traffic_Dataset(test_data,test_labels)
+        train_dataset = My_Dataset(train_file_list)
+        test_dataset = My_Dataset(test_file_list)
         train_num = train_dataset.__len__()
         test_num = test_dataset.__len__()
 
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         test_loader = DataLoader(test_dataset, batch_size=batch_size)
-        
         model.train()
         for x,y in tqdm(train_loader):
             train_pred = model(x)
@@ -88,32 +102,29 @@ def training(train_data, train_labels, test_data, test_labels,
         print(f'Loss: {round(float(train_loss / train_num), 4)}', end=' | ')
         print(f'Test Acc: {round(float(test_acc / test_num), 4)}', end=' ')
         print(f'Loss: {round(float(test_loss / test_num), 4)}')
+
     
 if __name__ == "__main__":
+    save_path = "../data/model/random_shadow_trained_model/model.tar"
+    train_dir = "../data/shadow_data/training"
+    test_dir = "../data/shadow_data/test"
+    train_file_list = make_file_list(train_dir)
+    test_file_list = make_file_list(test_dir)
 
-    with open('../data/dataset/GTSRB/train.pkl', 'rb') as f:
-            train = pickle.load(f)
-            train_x, train_y = train['data'], train['labels']
-    with open('../data/dataset/GTSRB/test.pkl', 'rb') as f:
-        test = pickle.load(f)
-        test_x, test_y = test['data'], test['labels']
-
-    n_class = len(np.unique(train_y))
+    n_class = len(os.listdir(train_dir))
     batch_size = 64
-    epoch_num = 50
+    epoch_num = 100
     start_epoch = 0
 
     model = GtsrbCNN(n_class)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
     loss_func = nn.CrossEntropyLoss()
 
-    save_path = "../data/model/resnet_gtsrb/model.tar"
     if os.path.isfile(save_path):
         checkpoint = torch.load(save_path)
         model.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
         start_epoch = checkpoint["epoch"]
 
-    training(train_data=train_x, train_labels=train_y, test_data=test_x, test_labels=test_y, 
-             model=model, start_epoch=start_epoch,epoch_num=epoch_num,  batch_size=batch_size, loss_func=loss_func, 
-             optimizer=optimizer, save_path=save_path)
+    train_test_loop(train_file_list=train_file_list, test_file_list=test_file_list, model=model, start_epoch=start_epoch,epoch_num=epoch_num,  batch_size=batch_size, loss_func=loss_func, optimizer=optimizer, save_path=save_path)
+    
