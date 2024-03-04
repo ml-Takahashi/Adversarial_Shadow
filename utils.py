@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
-from shapely.geometry import Polygon
+#from shapely.geometry import Polygon
 from torch.nn.modules.loss import _WeightedLoss
 from torchvision import transforms
 
@@ -71,8 +71,8 @@ def load_gtsrb(database_path):
 def load_mask():
 
     position_list, mask_list = [], []
-    for mask_file in sorted(os.listdir("./mask")):
-        with open(f"./mask/{mask_file}", "rb") as mf:
+    for mask_file in sorted(os.listdir("../data/mask")):
+        with open(f"../data/mask/{mask_file}", "rb") as mf:
             mask_list.append(pickle.load(mf))
             position_list.append(np.where(mask_list[-1] == 255))
 

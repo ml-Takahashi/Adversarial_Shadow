@@ -14,10 +14,11 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 from tqdm import tqdm
+from train_resnet import GtsrbCNN
 
 import gtsrb
 import lisa
-from gtsrb import GtsrbCNN
+#from gtsrb import GtsrbCNN
 from lisa import LisaCNN
 from pso import PSO
 from utils import (brightness, draw_shadow, judge_mask_type, load_mask,
@@ -70,7 +71,7 @@ parser.add_argument("--target_model", type=str, default="normal",
                     help="attack normal model or robust model")
 
 args = parser.parse_args()
-shadow_level = args.shadow_level-0.05
+shadow_level = args.shadow_level
 target_model = args.target_model
 attack_db = args.attack_db
 attack_type = args.attack_type
@@ -90,9 +91,9 @@ if attack_db == "LISA":
     pre_process = transforms.Compose([transforms.ToTensor()])
 else:
     model = GtsrbCNN(n_class=class_n_gtsrb).to(device)
-    model.load_state_dict(
-        torch.load(f'./model/{"adv_" if target_model == "robust" else ""}model_gtsrb.pth',
-                   map_location=torch.device(device)))
+    checkpoint = torch.load('../data/model/random_shadow_trained_model/model.tar') #torch.load('../data/model/resnet_gtsrb/model.tar')
+    model.load_state_dict(checkpoint["model_state_dict"])
+    
     pre_process = transforms.Compose([
         pre_process_image, transforms.ToTensor()])
 model.eval()
@@ -163,7 +164,7 @@ def attack(attack_image, label, coords, targeted_attack=False, physical_attack=F
 
 def attack_digital():
 
-    img_dir = f'adv_img/{attack_db}/{int(shadow_level*100)}_all_shadow'
+    img_dir = f'../data/adv_img/{attack_db}/{int(shadow_level*100)}_all_attack'
     #img_dir = "adv_img/GTSRB/43_random_attack"
 
     #files_file = [f for f in os.listdir(img_dir+"/0") if (os.path.isfile(os.path.join(img_dir, f))&("bmp" in f))]
@@ -247,8 +248,6 @@ def attack_physical():
 
 
 if __name__ == '__main__':
-    print(model)
-    exit()
     attack_digital() if attack_type == 'digital' else attack_physical()
     
 
