@@ -13,7 +13,8 @@ from torchvision import transforms
 
 import gtsrb
 import lisa
-from gtsrb import GtsrbCNN
+#from gtsrb import GtsrbCNN
+from functions import GtsrbCNN,train_test_loop,MyDataset
 from lisa import LisaCNN
 from pso import PSO
 from utils import (brightness, draw_shadow, judge_mask_type, load_mask,
@@ -58,6 +59,8 @@ mask_path = args.mask_path
 image_label = args.image_label
 polygon = args.polygon
 n_try = args.n_try
+save_path = "../data/model/normalized_model_gtsrb.pth"
+
 
 
 assert attack_db in ['LISA', 'GTSRB']
@@ -68,12 +71,19 @@ if attack_db == "LISA":
                    map_location=torch.device(device)))
     pre_process = transforms.Compose([transforms.ToTensor()])
 else:
-    model = GtsrbCNN(n_class=class_n_gtsrb).to(device)
-    model.load_state_dict(
-        torch.load(f'./model/{"adv_" if target_model == "robust" else ""}model_gtsrb.pth',
-                   map_location=torch.device(device)))
+    # ここでモデルを読み込む
+    model = GtsrbCNN(n_class=class_n_gtsrb)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-5)
+    if os.path.isfile(save_path):
+        checkpoint = torch.load(save_path)
+        model.load_state_dict(checkpoint["model_state_dict"])
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        start_epoch = checkpoint["epoch"]
     pre_process = transforms.Compose([
-        pre_process_image, transforms.ToTensor()])
+    transforms.Resize((32,32)),  # 画像を32x32にリサイズ
+    transforms.ToTensor(),          # 画像をテンソルに変換
+    transforms.Normalize(mean=[0.3403, 0.3121, 0.3214], std=[0.1595, 0.1590, 0.1683])  # 正規化(訓練データのmeanとstd)
+])
 model.eval()
 
 
@@ -142,13 +152,13 @@ def attack(attack_image, label, coords, targeted_attack=False, physical_attack=F
 
 def attack_digital():
 
-    save_dir = f'./adv_img/{attack_db}/{int(shadow_level*100)}'
+    save_dir = f'../data/adv_img/{int(shadow_level*100)}/'#{attack_db}/{int(shadow_level*100)}'
     try:
         os.mkdir(save_dir)
     except FileExistsError:
         for name in os.listdir(save_dir):
             os.remove(os.path.join(save_dir, name))
-
+#ここから修正
     with open(f'./dataset/{attack_db}/test.pkl', 'rb') as dataset:
         test_data = pickle.load(dataset)
         images, labels = test_data['data'], test_data['labels']

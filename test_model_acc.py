@@ -17,23 +17,9 @@ import sys
 import collections
 import pickle
 import matplotlib.pyplot as plt
+import pandas as pd
+from functions import MyDataset
 
-
-class My_Dataset(Dataset):
-
-    def __init__(self,file_list,transform=transforms.ToTensor()):
-        self.file_list = file_list
-        self.transform = transform
-    
-    def __len__(self):
-        return len(self.file_list)
-
-    def __getitem__(self,idx):
-        img_path = self.file_list[idx]
-        img = Image.open(img_path)
-        img_transformed = self.transform(img)
-        label = int(img_path.split("/")[-2])
-        return img_transformed,label
 
 class GtsrbCNN(nn.Module):
 
@@ -45,7 +31,6 @@ class GtsrbCNN(nn.Module):
         self.res_block.fc = nn.Linear(2048, n_class, bias=True)
 
     def forward(self, x):
-
         x = self.res_block(x)
         return x
 
@@ -177,5 +162,5 @@ if __name__ == "__main__":
         model.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
     
-    test_loop(test_file_list=test_file_list, model=model, batch_size=batch_size,n_class=n_class)
+    #test_loop(test_file_list=test_file_list, model=model, batch_size=batch_size,n_class=n_class)
     

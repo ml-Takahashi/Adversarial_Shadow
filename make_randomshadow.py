@@ -3,9 +3,16 @@ import cv2 as cv
 import random
 import numpy as np
 import os
+import sys
 
 # 影の開始ポイント
 shadow_point = ["top","right","bottom","left"]
+if len(sys.argv) > 1:
+    N = sys.argv[1]
+else:
+    print("影の比率を入力してください")
+    exit()
+
 
 def get_random_point(image):
     random_side = random.sample(shadow_point,2)
@@ -55,9 +62,9 @@ def draw_shadow(image,draw_point):
     draw_point = [[[x,y] for x,y in draw_point]]
     s_img = cv.cvtColor(image, cv.COLOR_BGR2Lab)
     line_mask = np.zeros_like(image)
-    cv.fillPoly(line_mask, np.array(draw_point), (255, 255, 255))
-    mask = np.column_stack((np.all(line_mask == [255, 255, 255], axis=-1)))
-    s_img[mask,0] = s_img[mask,0]*0.43
+    cv.fillPoly(line_mask, np.array(draw_point), (255, 255, 255)) # draw_pointで囲われている点を白で塗りつぶす
+    mask = np.column_stack((np.all(line_mask == [255, 255, 255], axis=-1))) # リストになっている白の点を縦に並べる(座標をまとめたndarray)
+    s_img[mask,0] = s_img[mask,0] * N # 該当する点に影の比率をかける
     s_img = cv.cvtColor(s_img,cv.COLOR_Lab2BGR)
     return s_img
 
