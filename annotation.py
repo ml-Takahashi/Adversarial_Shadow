@@ -65,7 +65,6 @@ class Annotation(Dataset):
         json_path = path.split("/")[-1].split(".")[0] + ".json"
         with open(json_path) as f:
             di = json.load(f)
-        shape_type,
         img = Image.open(path) #ここで画像の読み込み
         # データの変形 (transforms)
         img = self.transforms(img)
