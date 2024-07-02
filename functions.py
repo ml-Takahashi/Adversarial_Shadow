@@ -1,3 +1,4 @@
+# 通常の学習に必要なクラス・関数のみ宣言
 
 import torch
 from torch.utils.data import Dataset
@@ -8,7 +9,6 @@ from tqdm import tqdm
 import time
 import pandas as pd
 from PIL import Image
-
 
 
 class MyDataset(Dataset):
