@@ -18,117 +18,49 @@ import json
 import random
 import re
 import os
+from shaped_shadow_func import *
 
 N = 0.43
 ichou_shadow_dir = "../data/tree/"
 
-def draw_shadow(image, inside_points, pattern):
-    mask_img = cv2.imread(ichou_shadow_dir + f"ichou_shadow{str(pattern)}.png")
-    if mask_img is None:
-        raise FileNotFoundError(f"Image not found: {ichou_shadow_dir}ichou_shadow{str(pattern)}.png")
+def make_mask(image, inside_points, leaf_num=10):
+    # ここで敵対的な影のマスクを作成する予定
+    pass
 
-    # 画像をNumPy配列に変換し、チャネル順序を変換
-    image = image.permute(1, 2, 0).numpy()  # (C, H, W) -> (H, W, C)
-    image = (image * 255).astype(np.uint8)  # 0-1から0-255の範囲に変換
-    
-    img = cv2.cvtColor(image, cv2.COLOR_RGB2Lab)
-
-    # 白いピクセルのマスクを作成
-    white_mask = np.all(mask_img == [255, 255, 255], axis=-1)
-    
-    # 
-    inside_circle_white = np.zeros((32,32),dtype=bool)
-    for x,y in inside_points:
-        # inside_pointsに対応するwhite_maskの値を代入
-        inside_circle_white[x,y] = white_mask[x,y]
-    # Lチャンネルに対して白いピクセルの位置を0.4倍する
-    img[inside_circle_white, 0] = img[inside_circle_white, 0] * N
-
-    # 値の範囲を0-255にクリップ
-    img = np.clip(img, 0, 255).astype(np.uint8)
-
-    # LabからRGB空間に変換
-    img = cv2.cvtColor(img, cv2.COLOR_Lab2RGB)
-    return img
-
-def make_ichou_shadow(image, inside_points):
-    tree_image_dir = "../data/tree/"
-    dir_list = os.listdir(tree_image_dir)
-    pattern = r'ichou(\d+)'
-    shadow_pattern = []
-    for f in dir_list:
-        match = re.search(pattern, f)
-        if match:
-            shadow_pattern.append(int(match.group(1)))
-    pattern = random.choice(shadow_pattern)
-    draw_image = draw_shadow(image, inside_points, pattern)
-    return draw_image
-
-# 画像、アノテーションデータなどを返すクラス
+# 標識部分に影をつけて返すクラス
 class Annotation(Dataset):
-    def __init__(self, dataset_path, meta_data_path, json_dir, transform):
+    def __init__(self, dataset_path, meta_data_path, transform):
         super().__init__()
-        df = pd.read_csv(meta_data_path)
-        self.df = df[df["shape"]=="circle"].reset_index(drop=True) # 円の画像だけ
-        self.json_dir = json_dir
         self.dataset_path = dataset_path
-        self.transforms = transform
+        self.df = pd.read_csv(meta_data_path)
+        self.df = self.df[self.df["shape"].isin(["circle", "triangle"])]
+        self.df.reset_index(drop=True, inplace=True)
+        self.transform = transform
+        self.label_dict = {"circle": 0, "triangle": 1, "r_triangle": 2, "rectangle":3, "octagon":4}
 
-    # ここで取り出すデータを指定している
-    def __getitem__(self,index):
-        img_path = self.dataset_path + self.df["Path"][index]
-        json_path = self.json_dir + img_path.split("/")[-1].split(".")[0] + ".json"
-        with open(json_path) as f:
-            di = json.load(f)
-        points = di["shapes"][0]["points"]
-        shape_type = di["shapes"][0]["shape_type"]
-        img = Image.open(img_path) #ここで画像の読み込み
-        # データの変形 (transforms)
-        img = self.transforms(img)
-        label = self.df["ClassId"][index]
-        file_name = di["imagePath"].split("/")[-1]
-        return img, label, shape_type, file_name, points
-
-    # この method がないと DataLoader を呼び出す際にエラーを吐かれる
     def __len__(self):
         return len(self.df)
-    
-def get_polygon_info(x1, y1, x2, y2, shape_type):
-    # 長方形の幅と高さを計算
-    width = x2 - x1
-    height = y2 - y1
-    if (shape_type == "circle"):#|(shape_type == "octagon"):
-        # 円の半径は長方形の幅と高さの小さい方の半分
-        radius = min(width, height) // 2
-        # 円の中心は長方形の中心
-        center_x = x1 + width // 2
-        center_y = y1 + height // 2
-        return shape_type, radius, center_x, center_y
-    """elif shape_type == "triangle":
-        top_x = x1 + width//2
-        top_y = y1
-        left_x, left_y = x1, y2
-        right_x, right_y = x2, y2
-        return top_x, top_y, left_x, left_y, right_x, right_y
-    elif shape_type == "r_triangle":
-        bottom_x = x1 + width//2
-        bottom_y = y2
-        left_x, left_y = x1, y1
-        right_x, right_y = x2, y1
-        return bottom_x, bottom_y, left_x, left_y, right_x, right_y
-    elif shape_type == "rectangle":"""
 
-def get_inside_points(center,radius,img_size=32):
-    # 円の内側の座標を格納するリスト
-    inside_circle = []
+    # ここで取り出すデータを指定している
+    def __getitem__(self,idx):
+        img_path = self.dataset_path + self.df["Path"][idx]
+        file_name = img_path.split("/")[-1]
+        image = Image.open(img_path)
+        image = self.transform(image)
+        label = torch.tensor([self.label_dict[self.df["shape"][idx]]],dtype=torch.int64) #self.df["ClassId"][idx]
+        box = torch.tensor([self.df["new_x1"][idx], self.df["new_y1"][idx], self.df["new_x2"][idx], self.df["new_y2"][idx]], dtype=torch.int64).reshape(-1,4)
+        shape_type = self.df["shape"][idx]
+        box_info = get_box_info(box)
+        if shape_type == "circle":
+            target = get_circle_info(*box_info)
+            points_in_circle = get_points_in_circle(target)
+            shaped_shadow_img = make_ichou_shadow(image, points_in_circle)
+        elif shape_type == "triangle":
+            target = get_triangle_info(*box_info)
+            points_in_triangle = get_points_in_triangle(*target)
+            shaped_shadow_img = make_ichou_shadow(image, points_in_triangle)
+        return shaped_shadow_img, file_name
 
-    # 画像内のすべてのピクセルを調べる
-    for x in range(img_size):
-        for y in range(img_size):
-            # ピクセルが円の内部にあるかどうかを判定
-            if (x - center[0]) ** 2 + (y - center[1]) ** 2 < radius ** 2:
-                inside_circle.append((x, y))
-    return inside_circle
 
 if __name__=="__main__":
     meta_train_path = "../data/dataset/GTSRB/Train.csv"
@@ -148,30 +80,15 @@ if __name__=="__main__":
         transforms.ToTensor(),          # 画像をテンソルに変換
         #transforms.Normalize(mean=[0.3403, 0.3121, 0.3214], std=[0.1595, 0.1590, 0.1683])  # 正規化(訓練データのmeanとstd)
     ])
-    ann_dataset = Annotation(dataset_path, meta_train_path, annotation_dir, transform)
+    ann_dataset = Annotation(dataset_path, meta_train_path, transform)
     data_size = len(ann_dataset)
     ann_loader = DataLoader(ann_dataset,batch_size=batch_size,shuffle=False)
 
-    count = 0
-    for image, label, shape_type, file_name, points in tqdm(ann_loader):
-        image = image[0]
+    for image, file_name in tqdm(ann_loader):
+        image = image[0].numpy()
+        #image = image.permute(1, 2, 0).cpu().numpy()
+        #image = (image * 255).astype(np.uint8)  # 正規化を逆にする
         file_name = file_name[0]
-        center = torch.Tensor(points[0])
-        radius_tensor = torch.Tensor(points[0])-torch.Tensor(points[1])
-        radius = torch.norm(radius_tensor)
-        inside_points = get_inside_points(center,radius)
-        shaped_shadow_img = make_ichou_shadow(image, inside_points)
-        image = Image.fromarray(shaped_shadow_img)
+        image = Image.fromarray(image)
+        #image.save(f"{save_path}/{file_name}")
         image.save(f"{save_path}/{file_name}")
-
-        """image = image.permute(1, 2, 0).cpu().numpy()
-        image = (image * 255).astype(np.uint8)  # 正規化を逆にする
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        if polygon_info[0][0] == "circle":
-            shape_type, radius, center_x, center_y = polygon_info
-            shape_type, radius, center_x, center_y = shape_type, int(radius), int(center_x), int(center_y)
-        image_with_circle = cv2.circle(image, (center_x, center_y), radius, (0, 255, 0), 1)
-        
-        # 画像を保存
-        cv2.imwrite(f"{annotated_path}/{count}.png",image_with_circle)
-        count += 1"""
