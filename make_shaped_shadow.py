@@ -33,10 +33,10 @@ class Annotation(Dataset):
         super().__init__()
         self.dataset_path = dataset_path
         self.df = pd.read_csv(meta_data_path)
-        self.df = self.df[self.df["shape"].isin(["circle", "triangle"])]
+        self.df = self.df[self.df["shape"].isin(["r_triangle"])]#(["circle", "triangle"])]
         self.df.reset_index(drop=True, inplace=True)
         self.transform = transform
-        self.label_dict = {"circle": 0, "triangle": 1, "r_triangle": 2, "rectangle":3, "octagon":4}
+        self.label_dict = {"circle": 0, "triangle": 1, "r_triangle": 2, "square":3, "octagon":4}
 
     def __len__(self):
         return len(self.df)
@@ -59,6 +59,12 @@ class Annotation(Dataset):
             target = get_triangle_info(*box_info)
             points_in_triangle = get_points_in_triangle(*target)
             shaped_shadow_img = make_ichou_shadow(image, points_in_triangle)
+        elif shape_type == "r_triangle":
+            target = get_r_triangle_info(*box_info)
+            points_in_r_triangle = get_points_in_triangle(*target)
+            shaped_shadow_img = make_ichou_shadow(image, points_in_r_triangle)
+        #elif shape_type == ""
+
         return shaped_shadow_img, file_name
 
 
@@ -83,7 +89,8 @@ if __name__=="__main__":
     ann_dataset = Annotation(dataset_path, meta_train_path, transform)
     data_size = len(ann_dataset)
     ann_loader = DataLoader(ann_dataset,batch_size=batch_size,shuffle=False)
-
+    
+    count = 0
     for image, file_name in tqdm(ann_loader):
         image = image[0].numpy()
         #image = image.permute(1, 2, 0).cpu().numpy()
@@ -92,3 +99,5 @@ if __name__=="__main__":
         image = Image.fromarray(image)
         #image.save(f"{save_path}/{file_name}")
         image.save(f"{save_path}/{file_name}")
+        image.save(f"trash/output{count}.png")
+        count += 1

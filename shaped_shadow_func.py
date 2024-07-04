@@ -19,6 +19,30 @@ import os
 
 N = 0.43
 ichou_shadow_dir = "../data/tree/"
+# yとxが逆になる現象を解消する
+def get_box_info(box):
+    # ここで返すxは縦向き、yは横向きの直感的でない座標を示すので注意.widthは横幅、heightは縦幅を表す.
+    box = box[0]
+    x1, y1, x2, y2 = box[0], box[1], box[2], box[3]
+    width = y2 - y1#x2 - x1
+    height = x2 - x1#y2 - y1
+    return  x1, y1, x2, y2, width, height
+
+
+def get_triangle_info(x1, y1, x2, y2, width, height):
+    top_x = x1
+    top_y = y1 + width//2
+    left_x, left_y = x2, y1
+    right_x, right_y = x2, y2
+    return [top_x,top_y], [left_x,left_y], [right_x,right_y], width, height
+
+def get_r_triangle_info(x1, y1, x2, y2, width, height):
+    left_x, left_y = x1, y1
+    right_x, right_y = x1, y2
+    bottom_x = x2
+    bottom_y = y1 + width//2
+    return [left_x,left_y], [right_x,right_y], [bottom_x,bottom_y], width, height
+
 
 def is_point_in_triangle(pt, a, b, c):
     """
@@ -62,6 +86,41 @@ def get_points_in_triangle(a, b, c, image_width, image_height):
 
     return points_in_triangle
 
+############ 円形標識のための関数 ####################
+def get_circle_info(x1, y1, x2, y2, width, height):
+    target = {"shape_type": "circle"}
+    # 円の半径は長方形の幅と高さの小さい方の半分
+    radius = min(width, height) // 2
+    # 円の中心は長方形の中心
+    center_x = x1 + width // 2
+    center_y = y1 + height // 2
+    target["radius"] = radius
+    target["center"] = [center_x, center_y]
+    return target
+
+def get_points_in_circle(target,img_size=32):
+    center = target["center"]
+    radius = target["radius"]
+    # 円の内側の座標を格納するリスト
+    points_in_circle = []
+    # 画像内のすべてのピクセルを調べる
+    for x in range(img_size):
+        for y in range(img_size):
+            # ピクセルが円の内部にあるかどうかを判定
+            if (x - center[0]) ** 2 + (y - center[1]) ** 2 < radius ** 2:
+                points_in_circle.append((x, y))
+    return points_in_circle
+###################################################
+
+
+    """elif shape_type == "r_triangle":
+        bottom_x = x1 + width//2
+        bottom_y = y2
+        left_x, left_y = x1, y1
+        right_x, right_y = x2, y1
+        return bottom_x, bottom_y, left_x, left_y, right_x, right_y
+    elif shape_type == "rectangle":"""
+
 def draw_shadow(image, inside_points, pattern):
     mask_img = cv2.imread(ichou_shadow_dir + f"ichou_shadow{str(pattern)}.png")
     if mask_img is None:
@@ -102,55 +161,3 @@ def make_ichou_shadow(image, inside_points):
     pattern = random.choice(shadow_pattern)
     draw_image = draw_shadow(image, inside_points, pattern)
     return draw_image
-
-def get_box_info(box):
-    box = box[0]
-    x1, y1, x2, y2 = box[0], box[1], box[2], box[3]
-    width = x2 - x1
-    height = y2 - y1
-    return  x1, y1, x2, y2, width, height
-
-def get_circle_info(x1, y1, x2, y2, width, height):
-    target = {"shape_type": "circle"}
-    # 円の半径は長方形の幅と高さの小さい方の半分
-    radius = min(width, height) // 2
-    # 円の中心は長方形の中心
-    center_x = x1 + width // 2
-    center_y = y1 + height // 2
-    target["radius"] = radius
-    target["center"] = [center_x, center_y]
-    return target
-
-"""def get_triangle_info(x1, y1, x2, y2, width, height):
-    top_x = x1 + width//2
-    top_y = y1
-    left_x, left_y = x1, y2
-    right_x, right_y = x2, y2
-    return [top_x,top_y], [left_x,left_y], [right_x,right_y], width, height"""
-def get_triangle_info(x1, y1, x2, y2, width, height):
-    top_y = x1 + width//2
-    top_x = y1
-    left_y, left_x = x1, y2
-    right_y, right_x = x2, y2
-    return [top_x,top_y], [left_x,left_y], [right_x,right_y], width, height
-
-    """elif shape_type == "r_triangle":
-        bottom_x = x1 + width//2
-        bottom_y = y2
-        left_x, left_y = x1, y1
-        right_x, right_y = x2, y1
-        return bottom_x, bottom_y, left_x, left_y, right_x, right_y
-    elif shape_type == "rectangle":"""
-
-def get_points_in_circle(target,img_size=32):
-    center = target["center"]
-    radius = target["radius"]
-    # 円の内側の座標を格納するリスト
-    points_in_circle = []
-    # 画像内のすべてのピクセルを調べる
-    for x in range(img_size):
-        for y in range(img_size):
-            # ピクセルが円の内部にあるかどうかを判定
-            if (x - center[0]) ** 2 + (y - center[1]) ** 2 < radius ** 2:
-                points_in_circle.append((x, y))
-    return points_in_circle
