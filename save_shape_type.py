@@ -10,14 +10,14 @@ def classify_shape(id):
 
 
 if __name__=="__main__":
-    meta_train_path = "../data/dataset/GTSRB/Train.csv"
-    #meta_test_path = "../data/dataset/GTSRB/Test.csv"
-    df = pd.read_csv(meta_train_path)
+    #meta_train_path = "../data/dataset/GTSRB/Train.csv"
+    meta_test_path = "../data/dataset/GTSRB/Test.csv"
+    df = pd.read_csv(meta_test_path)
     columns = df.columns
     for col in columns:
         if "Unnamed" in col:
             df = df.drop(col,axis=1)
     df["shape"] = df["ClassId"].apply(classify_shape)
-    df.to_csv(meta_train_path,index=False)
+    df.to_csv(meta_test_path,index=False)
     
 

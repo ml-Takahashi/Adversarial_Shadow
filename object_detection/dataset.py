@@ -9,7 +9,7 @@ class CustomDataset(Dataset):
         self.dataset_path = dataset_path
         self.df = pd.read_csv(meta_data_path)
         self.transform = transform
-        self.label_dict = {"circle": 0, "triangle": 1, "r_triangle": 2, "rectangle":3, "octagon":4}
+        self.label_dict = {"circle": 0, "triangle": 1, "r_triangle": 2, "square":3, "octagon":4}
     
     def __len__(self):
         return len(self.df)
